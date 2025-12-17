@@ -13,7 +13,8 @@ fn main() {
     hangman();
 }
 
-/// Reads a space-separated list of words from "words.txt" and returns them as a Vector
+// Reads a space-separated list of words from "words.txt" and returns them as a Vector
+// Returns an error if the file cannot be opened or read
 fn load_words() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let mut f: File = File::open("words.txt")?;
     let mut buffer: String = String::new();
@@ -30,14 +31,15 @@ fn load_words() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     Ok(word_list)
 }
 
-/// Picks a random word from the provided word list
+// Picks a random word from the provided word list
 fn get_word(list: &Vec<String>) -> &String {
     let mut rng: rand::prelude::ThreadRng = rand::rng();
     let random_num: usize = rng.random_range(0..list.len());
     &list[random_num]
 }
 
-/// Checks if the input character is a lowercase letter and hasn't been used yet
+// Checks if the input character is a lowercase letter and hasn't been used yet
+// Updates the 'alphabets' string to track which letters remain available
 fn is_valid(guess: char, alphabets: &mut String) -> ErrorMsg {
     let mut msg: ErrorMsg = ErrorMsg {
         valid: false,
@@ -53,17 +55,19 @@ fn is_valid(guess: char, alphabets: &mut String) -> ErrorMsg {
                     alphabets.remove(x);
                 }
                 None => {
+                    // Letter was guessed before and no longer available
                     msg.valid = false;
                     msg.msg = String::from("already guessed letter");
                 }
             };
         }
+        // Input was not a letter
         _ => msg.msg = String::from("not a letter"),
     };
     msg
 }
 
-/// Returns true if the guessed character exists within the secret word
+// Returns true if the guessed character exists within the secret word
 fn guess_in_word(guess: char, secret_word: &String) -> bool {
     match secret_word.find(guess) {
         Some(_x) => true,
@@ -71,12 +75,12 @@ fn guess_in_word(guess: char, secret_word: &String) -> bool {
     }
 }
 
-/// Updates the hidden display string and removes found letters from the buffer word
+// Updates the hidden display string and removes found letters from the buffer word
 fn reveal_guess(guess: char, hidden: &mut String, buffer: &mut String, good_guesses: &mut usize) {
     loop {
         match buffer.find(guess) {
             Some(x) => {
-                // Replace underscore with the letter in the display string
+                // Replace blank space(_) with correct guess
                 hidden.remove(x);
                 hidden.insert(x, guess);
                 // Mark as found in the buffer so it isn't found again in the next loop iteration
@@ -85,6 +89,7 @@ fn reveal_guess(guess: char, hidden: &mut String, buffer: &mut String, good_gues
                 *good_guesses += 1;
             }
             None => {
+                // No more instances of this letter remain in the buffer
                 break;
             }
         }
@@ -92,19 +97,20 @@ fn reveal_guess(guess: char, hidden: &mut String, buffer: &mut String, good_gues
     println!("\nGood guess: {}", hidden);
 }
 
-/// Main game logic loop
+// Main game logic loop: handles state, user input and win/loss conditions
 fn hangman() {
     let words: Vec<String> = load_words().unwrap();
     let word: &String = get_word(&words);
     let mut buf_word: String = word.clone(); // Copy used to track remaining letters to find
     let mut good_guesses: usize = 0;
 
-    // Initialize the hidden string with underscores
+    // Initialize the hidden word with underscores
     let mut hidden: String = String::with_capacity(word.len());
     for i in 0..word.len() {
         hidden.insert(i, '_');
     }
 
+    // Set initial game resources
     let mut guess_counter: usize = 6;
     let mut warnings: u32 = 3;
     let mut letters: String = "abcdefghijklmnopqrstuvwxyz".to_string();
@@ -127,7 +133,12 @@ fn hangman() {
         }
 
         println!("- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -");
-        println!("You have {} guesses left. Good luck!", guess_counter);
+        // Grammar handling for remaining number of guesses
+        if guess_counter != 1 {
+            println!("You have {} guesses left. Good luck!", guess_counter);
+        } else {
+            println!("You have {} guess left. Good luck!", guess_counter);
+        }
         println!("Available letters: {}", letters);
         print!("Guess a letter: ");
         io::stdout().flush().expect("Failed to flush stdout");
@@ -138,35 +149,38 @@ fn hangman() {
             .read_line(&mut input)
             .expect("Failed to read user input");
 
-        // Ensure input is not multiple characters
+        // Ensure input is a single character
         if input.trim().len() > 1 {
             println!("\nPlease enter one letter at a time.");
             continue;
         };
 
-        let guess: char = input.chars().next().unwrap().to_ascii_lowercase();
+        let guess: char = input.chars().next().unwrap().to_ascii_lowercase(); //  Convert input String to char
         let input_check: ErrorMsg = is_valid(guess, &mut letters);
+        let mut text: String = String::from("warnings");
 
-        // Handle invalid inputs or repeats
+        // Handle invalid inputs or repeats and grammar handling
         if !input_check.valid {
             if warnings == 0 {
                 guess_counter -= 1;
                 println!("\nYou have no warnings left. Sorry, you will lose a guess.");
                 continue;
             }
+            warnings -= 1;
+            if warnings == 1 {
+                text = "warning".to_string();
+            }
             if input_check.msg == "already guessed letter" {
-                warnings -= 1;
                 println!(
-                    "\nYou have already guessed that letter. You now have {} warnings left:",
-                    warnings
+                    "\nYou have already guessed that letter. You now have {} {} left:",
+                    warnings, text
                 );
                 println!("Word to guess: {}", hidden);
                 continue;
             } else if input_check.msg == "not a letter" {
-                warnings -= 1;
                 println!(
-                    "\nInvalid input. Please enter letters only, You now have {} warnings left:",
-                    warnings
+                    "\nInvalid input. Please enter letters only, You now have {} {} left:",
+                    warnings, text
                 );
                 println!("Word to guess: {}", hidden);
                 continue;
@@ -178,11 +192,12 @@ fn hangman() {
             println!("\nSorry, that letter is not in my word: {}", hidden);
             match guess {
                 'a' | 'e' | 'i' | 'o' | 'u' => {
-                    // Vowels are more expensive
+                    // Vowel penalty
                     guess_counter -= 2;
                     println!("You entered a vowel letter, that will cost you 2 guesses.");
                 }
                 _ => {
+                    // Consonant penalty
                     guess_counter -= 1;
                     println!("You entered a consonant letter, you will lose a guess.")
                 }
