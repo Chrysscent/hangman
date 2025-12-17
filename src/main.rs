@@ -110,11 +110,7 @@ fn hangman() {
     let mut letters: String = "abcdefghijklmnopqrstuvwxyz".to_string();
 
     println!("Welcome to the game Hangman!");
-    println!(
-        "I think of a word, it is {} and {} letters long.",
-        word,
-        word.len()
-    );
+    println!("I think of a word, it is {} letters long.", word.len());
     println!("Accumulating three warnings will lose you a guess.\n");
 
     loop {
